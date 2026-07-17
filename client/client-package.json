@@ -1,0 +1,8 @@
+{
+  "name": "hyperlocal-ecommerce-client",
+  "type": "react",
+  "framework": "vite",
+  "scripts": {
+    "build": "vite build"
+  }
+}

@@ -1,0 +1,115 @@
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+@layer base {
+  :root {
+    /* 60% - Canvas */
+    --canvas-primary: #FDFBF7; /* Warm Ivory - Friendly app background */
+    --canvas-secondary: #FFFFFF; /* Pure White - Cards & Modules */
+    
+    /* 30% - Structure */
+    --text-primary: #1E293B; /* Slate 800 - Headings */
+    --text-secondary: #475569; /* Slate 600 - Body Text */
+    --border-subtle: #E2E8F0; /* Slate 200 - Dividers */
+    --sidebar-bg: #0F172A; /* Midnight Navy - Sidebar Contrast */
+    
+    /* 10% - Accent & Alerts */
+    --accent-primary: #F97316; /* Vibrant Coral - Brand Identity & Action */
+    --accent-hover: #EA580C; /* Tangerine/Coral Hover */
+    --alert-critical: #E11D48; /* Rose/Crimson - Urgent stock alerts */
+  }
+}
+
+@theme inline {
+  --color-canvas-primary: var(--canvas-primary);
+  --color-canvas-secondary: var(--canvas-secondary);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-border-subtle: var(--border-subtle);
+  --color-sidebar-bg: var(--sidebar-bg);
+  --color-accent-primary: var(--accent-primary);
+  --color-accent-hover: var(--accent-hover);
+  --color-alert-critical: var(--alert-critical);
+  --font-sans: 'Plus Jakarta Sans', 'Outfit', sans-serif;
+}
+
+body {
+  background-color: var(--canvas-primary);
+  color: var(--text-primary);
+  font-family: 'Plus Jakarta Sans', 'Outfit', sans-serif;
+}
+
+/* Custom Minimal Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--canvas-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: 0px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+/* Grid Parallax and Grid Animation for Landing View */
+.grid-bg {
+  background-size: 40px 40px;
+  background-image: 
+    linear-gradient(to right, rgba(15, 23, 42, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.03) 1px, transparent 1px);
+}
+
+/* Leaflet Map Custom Styling */
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  background: var(--canvas-primary) !important;
+}
+
+.leaflet-bar {
+  border: 1px solid var(--border-subtle) !important;
+  box-shadow: none !important;
+  border-radius: 0px !important;
+}
+
+.leaflet-bar a {
+  border-bottom: 1px solid var(--border-subtle) !important;
+  background-color: var(--canvas-secondary) !important;
+  color: var(--text-primary) !important;
+  border-radius: 0px !important;
+}
+
+.leaflet-bar a:hover {
+  background-color: var(--canvas-primary) !important;
+  color: var(--text-primary) !important;
+}
+/* Glow hover effect for interactive elements */
+.glow-hover {
+  transition: box-shadow 0.2s ease-in-out;
+}
+.glow-hover:hover {
+  box-shadow: 0 0 8px var(--accent-primary);
+}
+
+/* Sold-out style for product cards */
+.sold-out {
+  background: var(--canvas-primary);
+  filter: grayscale(100%);
+  opacity: 0.6;
+}
+
+/* Adjust mini box pack animation duration to 1s */
+.animate-snap-box {
+  animation: miniBoxPack 1s cubic-bezier(0.175, 0.885, 0.32, 1.2) forwards;
+}
+/* Adjust item fly-in animations to 1s */
+.animate-item1, .animate-item2, .animate-item3 {
+  animation-duration: 1s;
+}
