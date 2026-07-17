@@ -1,0 +1,28 @@
+services:
+  # 1. Backend API (Express/Node.js)
+  - type: web
+    name: aero-cart-backend
+    env: node
+    rootDir: functions
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 8080
+
+  # 2. Frontend (Next.js)
+  - type: web
+    name: aero-cart-frontend
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_API_URL
+        fromService:
+          name: aero-cart-backend
+          type: web
+          property: host
