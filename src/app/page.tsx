@@ -8,6 +8,7 @@ import VendorHubView from "@/components/VendorHubView";
 import DeliveryTrackerView from "@/components/DeliveryTrackerView";
 import BoxPackingOverlay from "@/components/BoxPackingOverlay";
 import { CheckCircle2, ShieldCheck, ArrowRight, X, Compass, Bell } from "lucide-react";
+import { api } from "@/lib/api";
 
 export interface ProductVariant {
   name: string;
@@ -296,8 +297,59 @@ export default function Home() {
   const [riders, setRiders] = useState<Rider[]>(INITIAL_RIDERS);
   const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
+  const [backendOnline, setBackendOnline] = useState(false);
 
   const [loggedRole, setLoggedRole] = useState<"none" | "customer" | "vendor" | "rider">("none");
+
+  // Bootstrap: load live data from backend (fallback to mock on failure)
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [p, r, o, v, f] = await Promise.all([
+          api.getProducts(),
+          api.getRiders(),
+          api.getOrders(),
+          api.getVendors(),
+          api.getFeedback(),
+        ]);
+        if (p?.length) setInventory(p);
+        if (r?.length) setRiders(r);
+        if (o?.length) setOrders(o);
+        if (v?.length) setVendors(v);
+        if (f?.length) setFeedbacks(f);
+        setBackendOnline(true);
+        console.log("✅ Connected to backend at", process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080");
+      } catch {
+        console.warn("⚠️ Backend offline — running with mock data");
+      }
+    };
+    load();
+  }, []);
+
+  useEffect(() => {
+    if (!backendOnline) return;
+
+    const interval = window.setInterval(async () => {
+      try {
+        const [p, r, o, v, f] = await Promise.all([
+          api.getProducts(),
+          api.getRiders(),
+          api.getOrders(),
+          api.getVendors(),
+          api.getFeedback(),
+        ]);
+        if (p?.length) setInventory(p);
+        if (r?.length) setRiders(r);
+        if (o?.length) setOrders(o);
+        if (v?.length) setVendors(v);
+        if (f?.length) setFeedbacks(f);
+      } catch {
+        // keep the current UI state if the backend briefly pauses
+      }
+    }, 4000);
+
+    return () => window.clearInterval(interval);
+  }, [backendOnline]);
 
   // Onboarding Registry Handlers
   const handleRegisterUser = (name: string, phone: string, landmark: string, coords: [number, number]) => {
@@ -306,7 +358,7 @@ export default function Home() {
     setView("marketplace");
   };
 
-  const handleRegisterVendor = (name: string, shopName: string, phone: string, categories: string[], coords: [number, number]) => {
+  const handleRegisterVendor = async (name: string, shopName: string, phone: string, categories: string[], coords: [number, number]) => {
     const newVendorId = vendors.length + 1;
     const newVendor: Vendor = {
       id: newVendorId,
@@ -316,25 +368,21 @@ export default function Home() {
     };
 
     setVendors(prev => [...prev, newVendor]);
-
-    // Populate catalog stock levels for new vendor
     setInventory(current => current.map(p => ({
       ...p,
-      stock: {
-        ...p.stock,
-        [newVendorId]: Math.floor(10 + Math.random() * 20)
-      }
+      stock: { ...p.stock, [newVendorId]: Math.floor(10 + Math.random() * 20) }
     })));
-
     setSelectedVendorId(newVendorId);
     setLoggedRole("vendor");
     setView("vendor");
+    if (backendOnline) {
+      try { await api.createVendor(newVendor); } catch {}
+    }
   };
 
-  const handleRegisterRider = (name: string, phone: string, vehicle: string, activeHours: number, coords: [number, number]) => {
-    const newRiderId = `RIDER-${riders.length + 1}`;
+  const handleRegisterRider = async (name: string, phone: string, vehicle: string, activeHours: number, coords: [number, number]) => {
     const newRider: Rider = {
-      id: newRiderId,
+      id: `RIDER-${riders.length + 1}`,
       name,
       vehicle: `${vehicle} (${activeHours}h active)`,
       coords,
@@ -342,10 +390,12 @@ export default function Home() {
       earnings: 0,
       deliveriesCount: 0
     };
-
     setRiders(prev => [...prev, newRider]);
     setLoggedRole("rider");
     setView("delivery");
+    if (backendOnline) {
+      try { await api.createRider(newRider); } catch {}
+    }
   };
 
   const handleSignOut = () => {
@@ -474,7 +524,7 @@ export default function Home() {
   };
 
   // 6. Checkout handler
-  const handleCheckout = (paymentMethod: "Online" | "COD", deliveryArea: string) => {
+  const handleCheckout = async (paymentMethod: "Online" | "COD", deliveryArea: string) => {
     const activeVendor = vendors.find(v => v.id === selectedVendorId) || vendors[0];
     const subtotal = cart.reduce((total, item) => total + item.product.price * item.quantity, 0);
     const deliveryFee = 25;
@@ -531,10 +581,12 @@ export default function Home() {
     setOrders([newOrder, ...orders]);
     setLastCheckoutDetails({ orderId: generatedOrderId, total: finalTotal });
     setCart([]);
-    
     setAnimationMessage("Filing Dispatch Order...");
     setIsBoxAnimating(true);
-    
+    // Sync to backend
+    if (backendOnline) {
+      try { await api.createOrder(newOrder); } catch {}
+    }
     setTimeout(() => {
       setIsCheckoutSuccessOpen(true);
     }, 1300);
@@ -542,33 +594,30 @@ export default function Home() {
 
   // 7. Auto-assignment Dispatch Broadcast pipeline
   const handleAcceptOrder = (orderId: string) => {
-    // A. Move order to Accepted state
-    setOrders(prevOrders => prevOrders.map(order => 
+    setOrders(prevOrders => prevOrders.map(order =>
       order.id === orderId ? { ...order, status: "Accepted" } : order
     ));
+    if (backendOnline) api.updateOrder(orderId, { status: "Accepted" }).catch(() => {});
 
-    // B. Simulate dispatch broadcast alert: Auto match closest available rider after 4 seconds
     setTimeout(() => {
       setOrders(currentOrders => {
         const order = currentOrders.find(o => o.id === orderId);
         if (!order || order.status !== "Accepted") return currentOrders;
-
-        // Auto assign first idle rider
         const idleRider = riders.find(r => r.status === "Idle");
         if (idleRider) {
-          // Set rider Delivering status
-          setRiders(prevRiders => prevRiders.map(r => 
+          setRiders(prevRiders => prevRiders.map(r =>
             r.id === idleRider.id ? { ...r, status: "Delivering" } : r
           ));
-
-          // Set client banner alert
+          if (backendOnline) {
+            api.updateRider(idleRider.id, { status: "Delivering" }).catch(() => {});
+            api.updateOrder(orderId, { status: "Dispatched", assignedRider: idleRider }).catch(() => {});
+          }
           setActiveNotification({
             message: `Rider ${idleRider.name} is on the way for accepted order ${orderId}!`,
             orderId,
             actionType: "trace"
           });
-
-          return currentOrders.map(o => 
+          return currentOrders.map(o =>
             o.id === orderId ? { ...o, status: "Dispatched", assignedRider: idleRider } : o
           );
         }
@@ -601,27 +650,22 @@ export default function Home() {
   const handleDeliverOrder = (orderId: string) => {
     const order = orders.find(o => o.id === orderId);
     if (!order || !order.assignedRider) return;
-
     const riderId = order.assignedRider.id;
-
-    setRiders(riders.map(r => 
-      r.id === riderId 
-        ? { 
-            ...r, 
-            status: "Idle", 
-            earnings: r.earnings + 50,
-            deliveriesCount: r.deliveriesCount + 1 
-          } 
-        : r
+    const updatedRider = riders.find(r => r.id === riderId);
+    const newEarnings = (updatedRider?.earnings || 0) + 50;
+    const newCount = (updatedRider?.deliveriesCount || 0) + 1;
+    setRiders(riders.map(r =>
+      r.id === riderId ? { ...r, status: "Idle", earnings: newEarnings, deliveriesCount: newCount } : r
     ));
-
-    setOrders(orders.map(o => 
-      o.id === orderId ? { ...o, status: "Delivered" } : o
-    ));
+    setOrders(orders.map(o => o.id === orderId ? { ...o, status: "Delivered" } : o));
+    if (backendOnline) {
+      api.updateOrder(orderId, { status: "Delivered" }).catch(() => {});
+      api.updateRider(riderId, { status: "Idle", earnings: newEarnings, deliveriesCount: newCount }).catch(() => {});
+    }
   };
 
   // 9. Feedback ticket
-  const handleSubmitFeedback = (category: string, content: string, orderId?: string) => {
+  const handleSubmitFeedback = async (category: string, content: string, orderId?: string) => {
     const newFeedback: Feedback = {
       id: `FB-${Math.floor(1000 + Math.random() * 9000)}`,
       orderId,
@@ -630,6 +674,9 @@ export default function Home() {
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
     setFeedbacks([newFeedback, ...feedbacks]);
+    if (backendOnline) {
+      try { await api.createFeedback(newFeedback); } catch {}
+    }
   };
 
   // 10. Catalog inventory adjustments
